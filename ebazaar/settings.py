@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret! 
 
 ALLOWED_HOSTS = [
-    "e-bazaar-backend.onrender.com",
+    "https://e-bazaar-backend-witm.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
