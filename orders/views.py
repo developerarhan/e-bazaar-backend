@@ -1,6 +1,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.conf import settings
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,10 +35,12 @@ class OrderDetailView(APIView):
         return Response(serializer.data)
     
 
-client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))   
+client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
 class CreateOrderPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request):
         data = request.data
         items = data["items"]
@@ -45,10 +48,9 @@ class CreateOrderPaymentView(APIView):
         # Check for existing pending order
         order = Order.objects.filter(
             user=request.user,
-            status="PENDING"
+            status="PENDING_PAYMENT"
         ).last()
 
-        #1. Create Order
         if not order:
             order = Order.objects.create(
                 user=request.user,
@@ -57,25 +59,33 @@ class CreateOrderPaymentView(APIView):
                 tax=data["tax"],
                 grand_total=data["grand_total"],
             )
+        else:
+            #IMPORTANT: Update total on retry
+            order.total=data["total"]
+            order.delivery_charges=data["delivery_charges"]
+            order.tax=data["tax"]
+            order.grand_total=data["grand_total"]
+            order.save()
 
-        #2. Create Order Items
-            for item in items:
-                product = Product.objects.get(id=item["product"])
-                OrderItem.objects.create(
-                    order=order, 
-                    product=product,
-                    quantity=item["quantity"],
-                    price=item["price"],
-                )
+        OrderItem.objects.filter(order=order).delete()
+
+        for item in items:
+            product = Product.objects.get(id=item["product"])
+            OrderItem.objects.create(
+                order=order, 
+                product=product,
+                quantity=item["quantity"],
+                price=item["price"],
+            )
 
         # Add initial tracking update
         if not OrderTracking.objects.filter(order=order).exists():
-            OrderTracking.objects.create(order=order, status="Pending")
+            OrderTracking.objects.create(order=order, status="Pending Payment")
 
         amount = int(order.grand_total * 100) #Razorpay works in paise
 
         # Check if any PENDING payment already exists
-        payment = Payment.objects.filter(order=order, status="PENDING").last()
+        payment = Payment.objects.filter(order=order, status="CREATED").first()
 
         #3. Create Razorpay order
         if not payment:
@@ -90,7 +100,7 @@ class CreateOrderPaymentView(APIView):
                 order=order,
                 razorpay_order_id=razorpay_order["id"],
                 amount=order.grand_total,
-                status="PENDING"
+                status="CREATED"
             )
         else:
             razorpay_order = {
@@ -123,6 +133,7 @@ class VerifyPaymentView(APIView):
             # Already processed? Skip
             if payment.status == "SUCCESS":
                 return Response({"message": "Payment already verified"})
+            
             payment.razorpay_payment_id = data['razorpay_payment_id']
             payment.razorpay_signature = data['razorpay_signature']
             payment.status = "SUCCESS"
@@ -131,6 +142,13 @@ class VerifyPaymentView(APIView):
             order = payment.order
             order.status = "CONFIRMED"
             order.save()
+
+            if not OrderTracking.objects.filter(
+                order=order,
+                status="Confirmed"
+            ).exists():
+                OrderTracking.objects.create(order=order, status="Confirmed")
+
             return Response({"message": "Payment verified successfully"})
         
         except:
@@ -161,33 +179,42 @@ def razorpay_webhook_view(request):
     
     data = json.loads(payload)
 
-    if data["event"] == "payment.captured":
-        razorpay_order_id = data["payload"]["payment"]["entity"]["order_id"]
+    razorpay_order_id = (
+        data.get("payload", {})
+        .get("payment", {})
+        .get("entity", {})
+        .get("order_id")
+    )
 
-        payment = Payment.objects.filter(razorpay_order_id=razorpay_order_id).first()
-        if not payment:
-            return JsonResponse({"status": "payment not found"}, status=404)
-        
+    payment = Payment.objects.filter(
+        razorpay_order_id=razorpay_order_id
+    ).first()
+
+    if not payment:
+        return JsonResponse({"status": "payment not found"}, status=404)
+
+    if data["event"] == "payment.captured":
         # Prevent double update
         if payment.status != "SUCCESS":
             payment.status = "SUCCESS"
             payment.save()
 
-            payment.order.status = "CONFIRMED"
-            payment.order.save()
-            OrderTracking.objects.create(order=payment.order, status="Confirmed")
+            order = payment.order
+            order.status = "CONFIRMED"
+            order.save()
+
+            if not OrderTracking.objects.filter(
+                order=order,
+                status="Confirmed"
+            ).exists():
+                OrderTracking.objects.create(order=payment.order, status="Confirmed")
 
     elif data["event"] == "payment.failed":
-        razorpay_order_id = data["payload"]["payment"]["entity"]["order_id"]
+        if payment.status != "FAILED": 
+            payment.status = "FAILED"
+            payment.save()
 
-        payment = Payment.objects.filter(razorpay_order_id=razorpay_order_id).first()
-        if not payment:
-            return JsonResponse({"status": "payment not found"}, status=404)
-        
-        payment.status = "FAILED"
-        payment.save()
-
-        payment.order.status = "PENDING"
-        payment.order.save()
+            payment.order.status = "PENDING_PAYMENT"
+            payment.order.save()
 
     return JsonResponse({"status": "ok"})
