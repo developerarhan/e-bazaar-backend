@@ -42,42 +42,57 @@ class CreateOrderPaymentView(APIView):
         data = request.data
         items = data["items"]
 
-        #1. Create Order
-        order = Order.objects.create(
+        # Check for existing pending order
+        order = Order.objects.filter(
             user=request.user,
-            total=data["total"],
-            delivery_charges=data["delivery_charges"],
-            tax=data["tax"],
-            grand_total=data["grand_total"],
-        )
+            status="PENDING"
+        ).last()
+
+        #1. Create Order
+        if not order:
+            order = Order.objects.create(
+                user=request.user,
+                total=data["total"],
+                delivery_charges=data["delivery_charges"],
+                tax=data["tax"],
+                grand_total=data["grand_total"],
+            )
 
         #2. Create Order Items
-        for item in items:
-            product = Product.objects.get(id=item["product"])
-            OrderItem.objects.create(
-                order=order, 
-                product=product,
-                quantity=item["quantity"],
-                price=item["price"],
-            )
+            for item in items:
+                product = Product.objects.get(id=item["product"])
+                OrderItem.objects.create(
+                    order=order, 
+                    product=product,
+                    quantity=item["quantity"],
+                    price=item["price"],
+                )
 
         # Add initial tracking update
         OrderTracking.objects.create(order=order, status="Pending")
 
-        #3. Create Razorpay order
-        amount = int(order.grand_total * 100) #Razorpay works in paise
-        razorpay_order = client.order.create({
-            "amount": amount,
-            "currency": "INR",
-            "payment_capture": 1
-        })
+        # Check if payment already exists
+        payment = Payment.objects.filter(order=order).last()
 
-        #4. Create Payment entry
-        Payment.objects.create(
-            order=order,
-            razorpay_order_id=razorpay_order["id"],
-            amount=order.grand_total
-        )
+        #3. Create Razorpay order
+        if not payment:
+            amount = int(order.grand_total * 100) #Razorpay works in paise
+            razorpay_order = client.order.create({
+                "amount": amount,
+                "currency": "INR",
+                "payment_capture": 1
+            })
+
+            #4. Create Payment entry
+            payment = Payment.objects.create(
+                order=order,
+                razorpay_order_id=razorpay_order["id"],
+                amount=order.grand_total
+            )
+        else:
+            razorpay_order = {
+                "id": payment.razorpay_order_id
+            }
 
         #5. Send to frontend
         return Response({
@@ -116,6 +131,12 @@ class VerifyPaymentView(APIView):
             return Response({"message": "Payment verified successfully"})
         
         except:
+            payment = Payment.objects.filter(
+                razorpay_order_id=data.get("razorpay_order_id")
+            ).first()
+            if payment:
+                payment.status = "FAILED"
+                payment.save()
             return Response({"error": "Payment verification failed"}, status=400)
         
 
@@ -147,5 +168,14 @@ def razorpay_webhook_view(request):
 
             payment.order.status = "CONFIRMED"
             payment.order.save()
+    elif data["event"] == "payment.failed":
+        razorpay_order_id = data["payload"]["payment"]["entity"]["order_id"]
+
+        payment = Payment.objects.get(razorpay_order_id=razorpay_order_id)
+        payment.status = "FAILED"
+        payment.save()
+
+        payment.order.status = "PENDING"
+        payment.order.save()
 
     return JsonResponse({"status": "ok"})
