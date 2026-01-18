@@ -69,14 +69,16 @@ class CreateOrderPaymentView(APIView):
                 )
 
         # Add initial tracking update
-        OrderTracking.objects.create(order=order, status="Pending")
+        if not OrderTracking.objects.filter(order=order).exists():
+            OrderTracking.objects.create(order=order, status="Pending")
 
-        # Check if payment already exists
-        payment = Payment.objects.filter(order=order).last()
+        amount = int(order.grand_total * 100) #Razorpay works in paise
+
+        # Check if any PENDING payment already exists
+        payment = Payment.objects.filter(order=order, status="PENDING").last()
 
         #3. Create Razorpay order
         if not payment:
-            amount = int(order.grand_total * 100) #Razorpay works in paise
             razorpay_order = client.order.create({
                 "amount": amount,
                 "currency": "INR",
@@ -87,7 +89,8 @@ class CreateOrderPaymentView(APIView):
             payment = Payment.objects.create(
                 order=order,
                 razorpay_order_id=razorpay_order["id"],
-                amount=order.grand_total
+                amount=order.grand_total,
+                status="PENDING"
             )
         else:
             razorpay_order = {
@@ -157,10 +160,14 @@ def razorpay_webhook_view(request):
         return JsonResponse({"status": "Invalid signature"}, status=400)
     
     data = json.loads(payload)
+
     if data["event"] == "payment.captured":
         razorpay_order_id = data["payload"]["payment"]["entity"]["order_id"]
 
-        payment = Payment.objects.get(razorpay_order_id=razorpay_order_id)
+        payment = Payment.objects.filter(razorpay_order_id=razorpay_order_id).first()
+        if not payment:
+            return JsonResponse({"status": "payment not found"}, status=404)
+        
         # Prevent double update
         if payment.status != "SUCCESS":
             payment.status = "SUCCESS"
@@ -168,10 +175,15 @@ def razorpay_webhook_view(request):
 
             payment.order.status = "CONFIRMED"
             payment.order.save()
+            OrderTracking.objects.create(order=payment.order, status="Confirmed")
+
     elif data["event"] == "payment.failed":
         razorpay_order_id = data["payload"]["payment"]["entity"]["order_id"]
 
-        payment = Payment.objects.get(razorpay_order_id=razorpay_order_id)
+        payment = Payment.objects.filter(razorpay_order_id=razorpay_order_id).first()
+        if not payment:
+            return JsonResponse({"status": "payment not found"}, status=404)
+        
         payment.status = "FAILED"
         payment.save()
 
