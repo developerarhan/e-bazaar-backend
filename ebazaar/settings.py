@@ -61,7 +61,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True   # for development only
+CORS_ALLOWED_ORIGINS = [
+    "https://e-bazaar-frontend-three.vercel.app",
+]
+   # for development only
 
 ROOT_URLCONF = 'ebazaar.urls'
 
