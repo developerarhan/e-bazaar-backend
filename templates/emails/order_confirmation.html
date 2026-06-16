@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .order-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .order-box h2 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 20px;
+        }
+        .order-detail {
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .order-detail:last-child {
+            border-bottom: none;
+        }
+        .order-detail strong {
+            color: #555;
+            display: inline-block;
+            width: 120px;
+        }
+        .items-table {
+            width: 100%;
+            margin: 15px 0;
+            border-collapse: collapse;
+        }
+        .items-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        .items-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .total-row {
+            background: #f8f9fa;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #777;
+            font-size: 14px;
+        }
+    </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎉 Order Confirmed!</h1>
+            </div>
+            
+            <div class="content">
+                <p class="greeting">Hello {{ order.user.name }},</p>
+                <p>Thank you for shopping with <strong>E-Bazaar</strong>! Your order has been successfully confirmed and is being processed.</p>
+                
+                <div class="order-box">
+                    <h2>Order Details</h2>
+                    <div class="order-detail">
+                        <strong>Order ID:</strong> #{{ order.id }}
+                    </div>
+                    <div class="order-detail">
+                        <strong>Order Date:</strong> {{ order.created_at|date:"F d, Y" }}
+                    </div>
+                    <div class="order-detail">
+                        <strong>Status:</strong> {{ order.get_status_display }}
+                    </div>
+                    
+                    <h3 style="margin-top: 20px; color: #667eea;">Items Ordered:</h3>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td>{{ item.product.title }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>₹{{ item.price }}</td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="total-row">
+                                <td colspan="2">Subtotal</td>
+                                <td>₹{{ order.total }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">Delivery Charges</td>
+                                <td>₹{{ order.delivery_charges }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">Tax</td>
+                                <td>₹{{ order.tax }}</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td colspan="2">Grand Total</td>
+                                <td>₹{{ order.grand_total }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p>We'll send you another email when your order ships.</p>
+                
+                <div style="text-align:center;">
+                    <a href="{{ frontend_url }}/tracking/{{order.id}}" 
+                        class="button"
+                        style="text-align:center;
+                        background-color:#28a745;
+                        color:white;
+                        padding:12px 20px;
+                        text-decoration:none;
+                        border-radius:5px;
+                        display:inline-block;"
+                    >Track Your Order</a>
+                </div>
+                
+                <p style="margin-top: 30px; color: #666;">
+                    If you have any questions, please don't hesitate to contact our support team.
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>E-Bazaar</strong></p>
+                <p>Your trusted online marketplace</p>
+                <p style="font-size: 12px; margin-top: 10px;">
+                    This is an automated email. Please do not reply to this message.
+                </p>
+            </div>
+        </div>
+    </body>
+</html>

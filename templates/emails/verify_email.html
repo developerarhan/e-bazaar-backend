@@ -1,0 +1,110 @@
+<!-- templates/emails/verify_email.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px 20px; }
+        .button {
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 24px 0;
+        }
+        .expiry-note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #856404;
+        }
+        .link-fallback {
+            word-break: break-all;
+            color: #667eea;
+            font-size: 13px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #777;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Verify Your Email</h1>
+        </div>
+
+        <div class="content">
+            <p style="font-size: 18px; color: #333;">
+                Hi {{ user.name }},
+            </p>
+
+            <p>
+                Welcome to <strong>E-Bazaar</strong>! 
+                You're almost ready to start shopping.
+                Please verify your email address to activate your account.
+            </p>
+
+            <center>
+                <a href="{{ verification_url }}" class="button">
+                    Verify My Email
+                </a>
+            </center>
+
+            <div class="expiry-note">
+                ⏰ This link expires in <strong>24 hours</strong>.
+                After that, you'll need to request a new verification email.
+            </div>
+
+            <p style="color: #666; font-size: 14px;">
+                If the button doesn't work, copy and paste this link:
+            </p>
+            <p class="link-fallback">{{ verification_url }}</p>
+
+            <p style="margin-top: 30px; color: #999; font-size: 13px;">
+                If you didn't create an account with E-Bazaar, 
+                you can safely ignore this email.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>E-Bazaar</strong></p>
+            <p style="font-size: 12px;">
+                This is an automated email. Please do not reply.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
