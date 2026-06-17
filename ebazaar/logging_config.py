@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
 
-# BASE_DIR should already be defined at the top of your settings file
-# Force the creation of the logs directory right here before the LOGGING dict runs!
+# 1. Dynamically calculate the project root folder relative to this file
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# 2. Safely generate the logs directory in the project root
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
 LOGGING = {
@@ -33,7 +35,7 @@ LOGGING = {
         },
         'file_errors': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': 'logs/errors.log',
+            'filename': os.path.join(BASE_DIR, 'logs', 'errors.log'), # 👈 Updated to use absolute path safely
             'maxBytes': 1024 * 1024 * 5,  # 5 MB
             'backupCount': 3,
             'formatter': 'json',
@@ -43,7 +45,7 @@ LOGGING = {
             'class': 'django.utils.log.AdminEmailHandler',
             'level': 'CRITICAL',
             'filters': ['require_debug_false'],
-            'formatter': 'simple',  # ✅ FIXED: Switched from 'verbose' to 'simple'
+            'formatter': 'simple',
         },
     },
     'loggers': {
