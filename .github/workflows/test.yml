@@ -48,6 +48,13 @@ jobs:
         # Direct Django to use your optimized testing configuration profile
         DJANGO_SETTINGS_MODULE: ebazaar.settings.test
         DATABASE_URL: postgresql://ebazaar_user:ebazaar_pass@localhost:5432/ebazaar_test
+        # Supply dummy values for whatever get_env() is looking for:
+        SECRET_KEY: temporary_test_key
+        GOOGLE_CLIENT_ID: dummy_google_id
+        GOOGLE_CLIENT_SECRET: dummy_google_secret
+        GOOGLE_REDIRECT_URI: http://localhost:8000
+        RAZORPAY_KEY_ID: dummy_key
+        RAZORPAY_KEY_SECRET: dummy_secret
       run: |
         python manage.py test
 
