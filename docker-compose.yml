@@ -1,0 +1,220 @@
+x-django-env: &django-env
+  DJANGO_SETTINGS_MODULE: ebazaar.settings.development
+  DATABASE_URL: postgresql://ebazaar_user:ebazaar_pass@db:5432/ebazaar_db
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  DEBUG: "True"
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: ebazaar_db
+
+    environment:
+      POSTGRES_DB: ebazaar_db
+      POSTGRES_USER: ebazaar_user
+      POSTGRES_PASSWORD: ebazaar_pass
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    ports:
+      - "5432:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ebazaar_user -d ebazaar_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s   # ← give postgres time to initialise
+
+  redis:
+    image: redis:7-alpine
+    container_name: ebazaar_redis
+
+    ports:
+     - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    command: redis-server --appendonly yes
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ebazaar_migrate
+
+    command: python manage.py migrate --noinput
+
+    env_file:
+      - .env  
+    
+    environment:
+      <<: *django-env
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # No restart — runs once and done
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ebazaar_web
+
+    command: python manage.py runserver 0.0.0.0:8000
+
+    volumes:
+      - .:/app
+      - /app/staticfiles
+
+    ports:
+     - "8000:8000"
+
+    env_file:
+    - .env
+
+    environment:
+      <<: *django-env
+
+    depends_on:
+      db:
+        condition:  service_healthy
+      
+      redis:
+        condition: service_healthy
+      
+      migrate:
+        condition: service_completed_successfully  # ← wait for migrations
+
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ebazaar_celery
+
+    command: celery -A ebazaar worker --loglevel=info --pool=solo
+
+    volumes:
+      - .:/app
+
+    env_file:
+      - .env 
+
+    environment:
+      <<: *django-env
+
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped  
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ebazaar_celery_beat 
+
+    command: >
+      celery -A ebazaar beat
+      --loglevel=info
+      --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+    volumes:
+      - .:/app
+
+    env_file:
+      - .env 
+
+    environment:
+      <<: *django-env
+
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ebazaar_flower
+
+    command: >
+      celery -A ebazaar flower
+      --port=5555
+      --broker=redis://redis:6379/0
+
+    ports:
+      - "5555:5555"
+
+    env_file:
+      - .env 
+
+    environment:
+      <<: *django-env
+
+    depends_on:
+      - redis
+      - celery
+
+    profiles:
+      - monitoring
+
+  locust:
+    build:
+      context: ./locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locust/locustfile.py:/home/locust/locustfile.py
+    environment:
+      - LOCUST_HOST=http://web:8000
+      # ↑ "web" is the Docker service name —
+      # Locust reaches Django via internal Docker network,
+      # NOT localhost:8000 (that's only for YOUR browser)
+    depends_on:
+      - web
+    profiles:
+      - perf
+      # ↑ only starts when explicitly requested
+      # `docker-compose up` (normal dev) WON'T start this
+
+volumes:
+  postgres_data:
+  redis_data:  
