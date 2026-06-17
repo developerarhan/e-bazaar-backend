@@ -2,20 +2,16 @@ import random
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 from django.contrib.auth import get_user_model
+# ⚠️ Replace 'store' with your actual app name if different
 from store.models import Product, Category, Review  
 from faker import Faker
 
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = "Bulk populates Neon DB with hundreds of realistic products, users, and reviews safely"
+    help = "Bulk populates Neon DB with hundreds of realistic products, users, and reviews"
 
     def handle(self, *args, **kwargs):
-        # 🛡️ MASTER GUARD: If data is already there, skip the entire script instantly
-        if Product.objects.exists():
-            self.stdout.write(self.style.SUCCESS("🛡️ Neon DB already has products. Skipping seed to prevent any duplication!"))
-            return
-
         fake = Faker()
         self.stdout.write("🚀 Starting Mega-Data Seeding into Neon...")
 
@@ -67,13 +63,13 @@ class Command(BaseCommand):
             }
         }
 
-        # 2. Create 50 Dummy Customer Profiles Predictably
+        # 2. Create 50 Dummy Customer Profiles for Reviews
         self.stdout.write("👥 Generating dummy customer profiles...")
         dummy_users = []
         for i in range(50):
-            # ✅ FIXED: Deterministic email ensures no infinite user bloating on re-runs
-            email_address = f"buyer.{i}@ebazaar.test"
+            email_address = fake.unique.email()
             
+            # ✅ FIXED: Swapped 'first_name'/'last_name' for 'name' and set 'is_active' to True
             user, created = User.objects.get_or_create(
                 email=email_address,  
                 defaults={
@@ -95,7 +91,9 @@ class Command(BaseCommand):
                 defaults={'slug': slugify(cat_name), 'description': info['desc']}
             )
 
+            # Generate multiple variations of products to scale the store massively
             for base_item in info['items']:
+                # Create 3 distinct variations for EVERY item to inflate data cleanly
                 for variation in ["Standard", "Pro Edition", "Midnight Stealth"]:
                     title = f"{base_item} ({variation})"
                     
@@ -114,14 +112,14 @@ class Command(BaseCommand):
                     if created:
                         total_products_created += 1
 
-                        # 4. Inject Random Reviews (Only if the product was just created)
+                        # 4. Inject Random Reviews (2 to 6 reviews per product)
                         reviewers = random.sample(dummy_users, random.randint(2, 6))
                         for reviewer in reviewers:
                             Review.objects.get_or_create(
                                 product=product,
                                 user=reviewer,
                                 defaults={
-                                    'rating': random.choice([4, 5, 5, 5, 3, 4]),
+                                    'rating': random.choice([4, 5, 5, 5, 3, 4]), # Lean toward positive scores
                                     'comment': fake.sentence(nb_words=12),
                                     'verified_purchase': random.choice([True, True, False])
                                 }
