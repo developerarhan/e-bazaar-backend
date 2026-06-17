@@ -286,12 +286,12 @@ class RelatedProductsView(APIView):
             return Response(cached)
         
         if product.category:
-            # Same category, exclude current product
+            # Same category, exclude current productt
             related = Product.objects.filter(
                 category=product.category
             ).exclude(
                 id=pk
-            ).select_related('category').order_by('?')[:4]
+            ).select_related('category').order_by('-created_at')[:4]
             # order_by('?') = random order
             # so related products feel fresh on each visit
         else:
