@@ -1,0 +1,59 @@
+name: Django CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Spin up a temporary Postgres service for your database tests
+    services:
+      postgres_db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ebazaar_test
+          POSTGRES_USER: ebazaar_user
+          POSTGRES_PASSWORD: ebazaar_pass
+        ports:
+          - 5432:5432
+        # Ensure postgres is fully initialized before starting tests
+        options: >-
+          --health-cmd "pg_isready -U ebazaar_user -d ebazaar_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout Code Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip' # Speeds up subsequent pipeline runs
+
+    - name: Install Project Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        if [ -f requirements-test.txt ]; then pip install -r requirements-test.txt; fi
+
+    - name: Run Django Tests
+      env:
+        # Direct Django to use your optimized testing configuration profile
+        DJANGO_SETTINGS_MODULE: ebazaar.settings.test
+        DATABASE_URL: postgresql://ebazaar_user:ebazaar_pass@localhost:5432/ebazaar_test
+      run: |
+        python manage.py test
+
+    # NEW STEP: Triggers Render deployment only if tests pass on main/master
+    - name: Trigger Render Deployment
+      if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      run: |
+        echo "Tests passed successfully! Signaling Render to deploy..."
+        curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
