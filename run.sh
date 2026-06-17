@@ -10,7 +10,7 @@ echo "==> Running Pending Database Migrations..."
 python manage.py migrate --noinput
 
 echo "==> Hydrating Production Database with Mega-Data..."
-python manage.py seed_large_db
+python manage.py seed_large_db &
 
 echo "==> Backgrounding Asynchronous Task Worker Engine..."
 celery -A ebazaar worker --loglevel=info --pool=solo &
