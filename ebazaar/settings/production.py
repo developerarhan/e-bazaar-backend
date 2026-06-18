@@ -58,12 +58,11 @@ AUTH_COOKIE_SAMESITE = "None"
 
 
 # ─── Email — Brevo SMTP ───────────────────────────────────────────────
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp-relay.brevo.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = get_env("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = get_env("EMAIL_HOST_PASSWORD")
+# 🚀 Switch backend engine from SMTP to Anymail HTTP API
+EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+ANYMAIL = {
+    "BREVO_API_KEY": get_env("BREVO_API_KEY"),
+}
 DEFAULT_FROM_EMAIL = get_env("DEFAULT_FROM_EMAIL", default="noreply@ebazaar.com")
 
 
