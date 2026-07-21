@@ -9,6 +9,7 @@ from rest_framework import status
 
 from .models import Category, Product, Review
 from .serializers import CategorySerializer, ProductSerializer, ReviewSerializer
+from store.ai_summary import generate_review_summary, ReviewSummaryError
 
 logger = logging.getLogger('store')
 
@@ -201,6 +202,7 @@ class ReviewListCreateView(APIView):
         )
 
          # Invalidate product cache — rating changed
+        cache.delete(f"reviews:summary:{pk}")
         cache.delete(f"products:detail:{pk}")
         cache.delete(f"products:related:{pk}")
         cache.delete_pattern("products:list:*")
@@ -303,3 +305,69 @@ class RelatedProductsView(APIView):
         serializer = ProductSerializer(related, many=True)
         cache.set(cache_key, serializer.data, timeout=60 * 15)
         return Response(serializer.data)
+
+
+class ReviewSummaryView(APIView):
+    """
+    GET /api/store/<pk>/reviews/summary/
+
+    Returns an AI-generated summary of all reviews
+    for the given product.
+
+    Cached in Redis for REVIEW_SUMMARY_CACHE_TTL seconds.
+    Cache is invalidated when a new review is posted
+    (handled in ReviewListCreateView.post()).
+
+    Public endpoint — no auth needed to read summaries.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        product = get_object_or_404(Product, pk=pk)
+
+        #Check cache first 
+        cache_key = f"reviews:summary:{pk}"
+        cached_summary = cache.get(cache_key)
+
+        if cached_summary:
+            logger.info("Review summary cache HIT", extra={
+                'product_id': pk
+            })
+            return Response({
+                'summary': cached_summary,
+                'cached': True,
+                'review_count': product.review_count,
+            })
+
+        # Fetch reviews
+        # Fetch up to 50 most recent reviews for the prompt
+        # Sending 200 reviews would exceed token limits and
+        # also make the summary less focused
+        reviews = product.reviews.order_by('-created_at')[:50]
+
+        # Generate summary
+        try:
+            summary = generate_review_summary(reviews, product.title)
+        except ReviewSummaryError as e:
+            # Known, expected errors (not enough reviews,
+            # no API key, etc.) → 400 with clear message
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cache the result
+        ttl = getattr(settings, 'REVIEW_SUMMARY_CACHE_TTL', 60 * 60 * 6)
+        cache.set(cache_key, summary, timeout=ttl)
+
+        logger.info("Review summary generated and cached", extra={
+            'product_id': pk,
+            'review_count': len(list(reviews)),
+        })
+
+        return Response({
+            'summary': summary,
+            'cached': False,
+            'review_count': product.review_count,
+        })
+    

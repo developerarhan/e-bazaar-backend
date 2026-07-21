@@ -8,6 +8,7 @@ from .views import (
     ReviewListCreateView,
     ReviewDetailView,
     RelatedProductsView,
+    ReviewSummaryView
 )
 
 urlpatterns = [
@@ -22,6 +23,7 @@ urlpatterns = [
     # Reviews
     path("<int:pk>/reviews/", ReviewListCreateView.as_view(), name="product-reviews"),
     path("reviews/<int:pk>/", ReviewDetailView.as_view(), name="review-detail"),
+    path("<int:pk>/reviews/summary/", ReviewSummaryView.as_view()),
 
     # Categories
     path("categories/", CategoryListView.as_view(), name="categories"),

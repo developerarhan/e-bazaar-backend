@@ -289,3 +289,8 @@ CACHES = {
 FRONTEND_URL = get_env("FRONTEND_URL", default="http://localhost:5173", required=False)
 
 PASSWORD_RESET_TIMEOUT = 3600
+
+# AI
+GROQ_API_KEY = get_env("GROQ_API_KEY", required=False)
+GROQ_MODEL = "llama3-8b-8192"
+REVIEW_SUMMARY_CACHE_TTL = 60 * 60 * 6 
