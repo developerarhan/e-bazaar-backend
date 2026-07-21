@@ -149,4 +149,3 @@ def generate_review_summary(reviews, product_title):
         raise ReviewSummaryError(
             "Failed to generate summary. Please try again later."
         ) from exc
-    

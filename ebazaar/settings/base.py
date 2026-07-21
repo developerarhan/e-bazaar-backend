@@ -292,5 +292,5 @@ PASSWORD_RESET_TIMEOUT = 3600
 
 # AI
 GROQ_API_KEY = get_env("GROQ_API_KEY", required=False)
-GROQ_MODEL = "llama3-8b-8192"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 REVIEW_SUMMARY_CACHE_TTL = 60 * 60 * 6 
