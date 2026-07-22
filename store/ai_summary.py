@@ -41,27 +41,30 @@ def build_prompt(reviews, product_title):
 
     reviews_text = "\n\n".join(formatted_reviews)
 
-    return f"""You are a helpful shopping assistant. Analyze the following customer reviews for "{product_title} and provide a concise summary."
+    return f"""Synthesize the customer reviews for the product: "{product_title}".
 
-CUSTOMER REVIEWS:
+<reviews>
 {reviews_text}
+</reviews>
 
-Provide a structured summary in this EXACT format:
-**Overall Verdict:** [One sentence — is this product worth buying?]
+### RULES:
+1. Base your summary ONLY on facts explicitly mentioned in <reviews>. Never assume or invent details.
+2. Ignore spam, duplicate text, or irrelevant comments.
+3. Provide between 1 and 3 bullet points for positive and negative sections based strictly on available data. DO NOT invent extra points to reach 3 bullets.
+4. Keep every bullet point under 15 words.
+5. COMPLETENESS REQUIREMENT: You MUST include ALL 4 required sections below. Never leave a section blank, stop mid-sentence, or truncate any bullet point. Every thought must be complete.
+6. Output ONLY the summary starting directly with **Overall Verdict:** (no intro/outro text).
+
+### REQUIRED OUTPUT FORMAT:
+**Overall Verdict:** [1 sentence summarizing consensus — state clearly if recommended, mixed, or to be avoided]
 
 **What Customers Love:**
-- [Key positive point 1]
-- [Key positive point 2]
-- [Key positive point 3 if applicable]
+[1 to 3 bullet points of recurring pros, or write "- No major highlights mentioned"]
 
 **Common Complaints:**
-- [Key negative point 1]
-- [Key negative point 2 if applicable]
-- None mentioned [if no negatives found]
+[1 to 3 bullet points of recurring cons, or write "- No major complaints found"]
 
-**Best For:** [Who should buy this product?]
-
-Keep each bullet point under 15 words. Be honest — if reviews are mostly negative, say so."""
+**Best For:** [1 sentence describing the ideal buyer profile]"""
 
 def generate_review_summary(reviews, product_title):
     """
@@ -113,9 +116,8 @@ def generate_review_summary(reviews, product_title):
                 {
                     "role": "system",
                     "content": (
-                        "You are a concise, honest shopping assistant. "
-                        "You summarize customer reviews accurately without "
-                        "exaggerating positives or negatives."
+                        "You are an objective, data-driven e-commerce review analyst. "
+                        "Synthesize customer reviews accurately into concise summaries without conversational filler."
                     ),
                 },
                 {
