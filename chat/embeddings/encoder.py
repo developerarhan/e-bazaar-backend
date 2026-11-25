@@ -32,6 +32,11 @@ def get_model():
     if _model is None:
         logger.info("Loading sentence-transformer embedding model...")
         try:
+            import torch
+            torch.set_num_threads(1)
+        except Exception:
+            pass
+        try:
             from sentence_transformers import SentenceTransformer
             _model = SentenceTransformer('all-MiniLM-L6-v2')
             logger.info("Embedding model loaded successfully")

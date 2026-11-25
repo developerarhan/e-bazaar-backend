@@ -106,3 +106,12 @@ if REDIS_URL.startswith('rediss://'):
     CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': 'CERT_NONE'}
     CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': 'CERT_NONE'}
     CACHES['default']['OPTIONS']['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
+
+# ─── Free Tier Memory Optimization (512MB RAM cap) ───────────────────
+# Running separate Celery worker & beat processes alongside Gunicorn exhausts the 512MB limit.
+# By default, tasks (emails, notifications) run inline synchronously (eager mode).
+# Set CELERY_ENABLED=True only on paid plans with separate workers.
+CELERY_ENABLED = get_env("CELERY_ENABLED", default="False", required=False).lower() in ("true", "1")
+if not CELERY_ENABLED:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
