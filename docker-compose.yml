@@ -13,7 +13,7 @@ x-django-env: &django-env
 services:
 
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: ebazaar_db
 
     environment:

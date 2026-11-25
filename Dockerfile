@@ -4,12 +4,13 @@ FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HOME=/home/appuser/.cache/huggingface
 
 WORKDIR /app
 
 # Install system compilation packages safely
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     curl \
@@ -18,6 +19,12 @@ RUN apt-get update && apt-get install -y \
 
 # Stage 2: Install Python dependencies
 COPY requirements.txt .
+
+# Install CPU-only PyTorch first (avoids NVIDIA CUDA dependencies)
+RUN pip install torch==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining application dependencies
 RUN pip install -r requirements.txt
 
 COPY requirements-test.txt* .
@@ -26,25 +33,27 @@ RUN if [ -f requirements-test.txt ]; then pip install -r requirements-test.txt; 
 # Copy project files
 COPY . .
 
-# Generate the logging folder context safely
+# Create logs directory
 RUN mkdir -p logs
 
-# Configure a low-privilege system user account context for safety
+# Create a low-privilege application user
 RUN addgroup --system appgroup \
     && adduser --system --ingroup appgroup appuser
 
-# Give ownership of files to the non-root execution application user
-RUN chown -R appuser:appgroup /app
+# Create writable directories for the application and Hugging Face cache
+RUN mkdir -p /home/appuser/.cache/huggingface \
+    && chown -R appuser:appgroup /home/appuser \
+    && chown -R appuser:appgroup /app
 
-# Make sure our orchestration launch manager script is safely flagged executable
+# Make the startup script executable
 RUN chmod +x /app/run.sh
 
+# Run the application as a non-root user
 USER appuser
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || exit
+    CMD curl -f http://localhost:8000/health/ || exit 1
 
-# Default command falls back onto your production process layout manager shell script
 CMD ["/bin/sh", "run.sh"]
